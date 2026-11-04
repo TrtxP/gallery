@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Blender working files
+*.blend1
+blender/build/textures/
+blender/build/preview_*.png

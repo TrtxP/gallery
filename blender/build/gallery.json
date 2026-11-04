@@ -1,0 +1,175 @@
+{
+  "coordinateSystem": "Three.js / glTF (Y up). Converted from Blender (Z up): x, z, -y",
+  "room": {
+    "width": 10.0,
+    "length": 14.0,
+    "height": 4.0
+  },
+  "obstacles": [
+    {
+      "id": "partition",
+      "center": [
+        0,
+        0.5
+      ],
+      "size": [
+        4.4,
+        0.12
+      ]
+    }
+  ],
+  "eyeHeight": 1.6,
+  "suggestedFov": 55,
+  "viewpoints": [
+    {
+      "id": "overview",
+      "title": "Overview",
+      "artist": "",
+      "year": null,
+      "description": "",
+      "position": [
+        0.0,
+        1.6,
+        6.1
+      ],
+      "target": [
+        0.0,
+        1.7,
+        -2.0
+      ],
+      "artwork": null
+    },
+    {
+      "id": "art_01",
+      "title": "Concentric No. 1",
+      "artist": "Studio Name",
+      "year": 2026,
+      "description": "",
+      "position": [
+        0.0,
+        1.6,
+        3.89
+      ],
+      "target": [
+        0.0,
+        1.55,
+        0.56
+      ],
+      "artwork": {
+        "node": "Art_01",
+        "width": 1.8,
+        "height": 1.8
+      }
+    },
+    {
+      "id": "art_02",
+      "title": "Last Light",
+      "artist": "Studio Name",
+      "year": 2026,
+      "description": "",
+      "position": [
+        1.2,
+        1.6,
+        4.2
+      ],
+      "target": [
+        5.0,
+        1.55,
+        4.2
+      ],
+      "artwork": {
+        "node": "Art_02",
+        "width": 2.2,
+        "height": 1.4
+      }
+    },
+    {
+      "id": "art_03",
+      "title": "Composition in Red, Blue, Yellow",
+      "artist": "Studio Name",
+      "year": 2026,
+      "description": "",
+      "position": [
+        1.67,
+        1.6,
+        -2.0
+      ],
+      "target": [
+        5.0,
+        1.55,
+        -2.0
+      ],
+      "artwork": {
+        "node": "Art_03",
+        "width": 1.4,
+        "height": 1.8
+      }
+    },
+    {
+      "id": "art_04",
+      "title": "Tidal Study",
+      "artist": "Studio Name",
+      "year": 2026,
+      "description": "",
+      "position": [
+        0.0,
+        1.6,
+        -3.36
+      ],
+      "target": [
+        0.0,
+        1.55,
+        0.44
+      ],
+      "artwork": {
+        "node": "Art_04",
+        "width": 2.2,
+        "height": 1.5
+      }
+    },
+    {
+      "id": "art_05",
+      "title": "Cells",
+      "artist": "Studio Name",
+      "year": 2026,
+      "description": "",
+      "position": [
+        -1.535,
+        1.6,
+        -2.0
+      ],
+      "target": [
+        -5.0,
+        1.55,
+        -2.0
+      ],
+      "artwork": {
+        "node": "Art_05",
+        "width": 1.5,
+        "height": 1.9
+      }
+    },
+    {
+      "id": "art_06",
+      "title": "Weather Report",
+      "artist": "Studio Name",
+      "year": 2026,
+      "description": "",
+      "position": [
+        -1.4,
+        1.6,
+        4.2
+      ],
+      "target": [
+        -5.0,
+        1.55,
+        4.2
+      ],
+      "artwork": {
+        "node": "Art_06",
+        "width": 2.0,
+        "height": 1.4
+      }
+    }
+  ]
+}
