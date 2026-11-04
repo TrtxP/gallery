@@ -7,7 +7,19 @@ Designed for a **touchscreen kiosk with no mouse or keyboard**: visitors can mov
 
 ## Getting started
 
-Node.js 20 or newer is required.
+Node.js 20 or newer and [Git LFS](https://git-lfs.com/) are required. The gallery models, artwork, and audio are stored with Git LFS.
+
+Install Git LFS, then initialize it before cloning the repository:
+
+```bash
+git lfs install
+git clone https://gitea.kood.tech/illyacherepanov/gallery.git
+cd gallery
+```
+
+If you already cloned the repository before installing Git LFS, run `git lfs install` and then `git lfs pull` inside the project directory to download the files.
+
+Start the project from the `gallery` directory:
 
 ```bash
 npm install
