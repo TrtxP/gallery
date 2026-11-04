@@ -1,122 +1,113 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+/** @jsxRuntime classic */
+import * as React from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useProgress } from '@react-three/drei'
+import { GalleryScene } from './gallery/GalleryScene'
+import { stops } from './gallery/data'
+import { AUTOTOUR_STEP_MS, KIOSK_IDLE_MS, bonus } from './bonus/features'
+import { useIdleReset } from './bonus/useIdleReset'
+import { ErrorBoundary } from './ui/ErrorBoundary'
+import { Intro } from './ui/Intro'
+import { Tour } from './ui/Tour'
+import { useAmbientMusic } from './ui/useAmbientMusic'
+import { useSwipe } from './ui/useSwipe'
 
-function App() {
-  const [count, setCount] = useState(0)
+const LAST = stops.length - 1 // stops[0] is the overview, 1…LAST are the artworks
+
+export default function App() {
+  const [phase, setPhase] = useState<'intro' | 'tour'>('intro')
+  const [index, setIndex] = useState(0)
+  const [arrived, setArrived] = useState(true)
+  const [ready, setReady] = useState(false)
+  const [hint, setHint] = useState(false)
+  const [autoOn, setAutoOn] = useState(false)
+  const progress = useProgress((s) => s.progress)
+  const music = useAmbientMusic()
+  const { start: startMusic, stop: stopMusic } = music
+
+  const go = useCallback(
+    (i: number) => {
+      if (i === index) return
+      setIndex(i)
+      setArrived(false)
+      setHint(false)
+    },
+    [index],
+  )
+  const next = useCallback(() => go(index >= LAST ? 1 : index + 1), [go, index])
+  const prev = useCallback(() => go(index <= 1 ? LAST : index - 1), [go, index])
+
+  const enter = useCallback(() => {
+    setPhase('tour')
+    setHint(true)
+    startMusic() // a tap is the moment browsers allow sound to begin
+    go(1)
+  }, [go, startMusic])
+
+  const backToStart = useCallback(() => {
+    setPhase('intro')
+    setIndex(0)
+    setArrived(true)
+    setAutoOn(false)
+    stopMusic()
+  }, [stopMusic])
+
+  const swipe = useSwipe({ enabled: phase === 'tour', onLeft: next, onRight: prev })
+
+  // arrow keys / Escape (handy on a desktop, harmless on a touch screen)
+  useEffect(() => {
+    if (phase !== 'tour') return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') next()
+      else if (e.key === 'ArrowLeft') prev()
+      else if (e.key === 'Escape') go(0)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [phase, next, prev, go])
+
+  // the "swipe or tap" hint fades by itself
+  useEffect(() => {
+    if (!hint) return
+    const id = window.setTimeout(() => setHint(false), 7000)
+    return () => window.clearTimeout(id)
+  }, [hint])
+
+  // --- bonus features (off unless enabled, see src/bonus/features.ts) ---
+  useEffect(() => {
+    if (!autoOn || phase !== 'tour' || !arrived) return
+    const id = window.setTimeout(next, AUTOTOUR_STEP_MS)
+    return () => window.clearTimeout(id)
+  }, [autoOn, phase, arrived, next])
+  useIdleReset(bonus.kiosk && phase === 'tour', KIOSK_IDLE_MS, backToStart)
+
+  const handleReady = useCallback(() => setReady(true), [])
+  const handleArrive = useCallback(() => setArrived(true), [])
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <ErrorBoundary>
+      <div className="g-stage" {...swipe} onContextMenu={(e) => e.preventDefault()}>
+        <div className="g-canvas" aria-hidden="true">
+          <GalleryScene index={index} showStats={bonus.stats} onReady={handleReady} onArrive={handleArrive} />
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
 
-      <div className="ticks"></div>
+        <Intro visible={phase === 'intro'} ready={ready} progress={progress} onEnter={enter} />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+        {phase === 'tour' && (
+          <Tour
+            index={index}
+            arrived={arrived}
+            hint={hint}
+            musicOn={music.enabled}
+            autoOn={autoOn}
+            onPrev={prev}
+            onNext={next}
+            onGo={go}
+            onToggleMusic={music.toggle}
+            onToggleAuto={() => setAutoOn((v) => !v)}
+          />
+        )}
+      </div>
+    </ErrorBoundary>
   )
 }
-
-export default App

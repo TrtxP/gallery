@@ -1,0 +1,389 @@
+/* ───────── stage ───────── */
+.g-stage {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none; /* swipes are ours: no scrolling, no pinch/double-tap zoom */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.g-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.g-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ───────── buttons ───────── */
+.g-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: var(--tap);
+  padding: 0 1.3rem;
+  border: 1px solid var(--glass-line);
+  border-radius: 999px;
+  color: #fff;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+  font: 600 1.05rem/1 var(--sans);
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.2s ease;
+}
+
+.g-btn:hover {
+  background: rgb(24 25 23 / 0.88);
+}
+
+.g-btn:active {
+  transform: scale(0.95);
+}
+
+.g-btn:focus-visible,
+.g-dot:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.g-btn[aria-pressed='true']:not(.g-btn--primary) {
+  border-color: rgb(255 255 255 / 0.5);
+}
+
+.g-btn--primary {
+  min-height: 4.4rem;
+  padding: 0 3rem;
+  border: 0;
+  background: var(--accent);
+  font-size: 1.35rem;
+  box-shadow: 0 12px 32px rgb(18 62 32 / 0.38);
+}
+
+.g-btn--primary:hover {
+  background: var(--accent-hi);
+}
+
+.g-btn--round {
+  width: var(--round);
+  height: var(--round);
+  min-height: 0;
+  padding: 0;
+}
+
+.g-btn--round svg {
+  width: 2rem;
+  height: 2rem;
+}
+
+/* ───────── intro ───────── */
+.g-intro {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: var(--edge);
+  padding-top: max(var(--edge), env(safe-area-inset-top));
+  padding-bottom: max(calc(var(--edge) * 1.6), env(safe-area-inset-bottom));
+  pointer-events: none;
+  transition: opacity 0.55s ease, visibility 0s;
+}
+
+.g-intro.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.55s ease, visibility 0s 0.55s;
+}
+
+.g-intro__head {
+  max-width: 30rem;
+}
+
+.g-intro__head h1 {
+  margin: 0;
+  font: 700 clamp(2.1rem, 5vw, 3.6rem) / 1.04 var(--serif);
+  letter-spacing: -0.01em;
+  text-shadow: 0 1px 18px rgb(255 255 255 / 0.55);
+}
+
+.g-intro__head p {
+  margin: 0.9rem 0 0;
+  max-width: 24rem;
+  font-size: clamp(1rem, 1.9vw, 1.2rem);
+  line-height: 1.45;
+  text-shadow: 0 1px 14px rgb(255 255 255 / 0.7);
+}
+
+.g-intro__action {
+  display: flex;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.g-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 1rem;
+  text-shadow: 0 1px 12px rgb(255 255 255 / 0.7);
+}
+
+.g-progress {
+  display: block;
+  width: min(18rem, 60vw);
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgb(27 28 26 / 0.18);
+}
+
+.g-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 0.25s ease;
+}
+
+/* ───────── tour ───────── */
+.g-tour {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: g-in 0.5s ease both;
+}
+
+.g-tour > *,
+.g-tour .g-btn,
+.g-tour .g-dot {
+  pointer-events: auto;
+}
+
+@keyframes g-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.g-bar {
+  position: absolute;
+  top: max(var(--edge), env(safe-area-inset-top));
+  left: var(--edge);
+  right: var(--edge);
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  pointer-events: none;
+}
+
+.g-bar__group {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.g-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.g-arrow:active {
+  transform: translateY(-50%) scale(0.93);
+}
+
+.g-arrow--prev {
+  left: var(--edge);
+}
+
+.g-arrow--next {
+  right: var(--edge);
+}
+
+.g-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(var(--edge), env(safe-area-inset-bottom)) + 8.5rem);
+  margin: 0;
+  padding: 0.7rem 1.2rem;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  font-size: 1rem;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+}
+
+.g-hint.is-hidden {
+  opacity: 0;
+}
+
+.g-dock {
+  position: absolute;
+  left: var(--edge);
+  right: var(--edge);
+  bottom: max(var(--edge), env(safe-area-inset-bottom));
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  pointer-events: none;
+}
+
+/* the wall label: a museum caption card */
+.g-label {
+  max-width: min(30rem, 56vw);
+  padding: 1rem 1.3rem 1.1rem;
+  border-radius: 3px;
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.22);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.g-label.is-away {
+  opacity: 0;
+  transform: translateY(0.6rem);
+  transition-duration: 0.18s;
+}
+
+.g-label__title {
+  margin: 0;
+  font: 700 clamp(1.25rem, 2.6vw, 1.7rem) / 1.15 var(--serif);
+}
+
+.g-label__meta {
+  margin: 0.35rem 0 0;
+  font-size: clamp(0.95rem, 1.8vw, 1.1rem);
+  color: rgb(27 28 26 / 0.74);
+}
+
+.g-label__text {
+  margin: 0.7rem 0 0;
+  max-width: 36ch;
+  font: 400 1rem/1.5 var(--serif);
+}
+
+.g-dots {
+  display: flex;
+  gap: 0.1rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--glass-line);
+  border-radius: 999px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.g-dot {
+  position: relative;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.g-dot::before {
+  content: '';
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid rgb(255 255 255 / 0.75);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.g-dot[aria-current='true']::before {
+  background: #fff;
+  transform: translate(-50%, -50%) scale(1.3);
+}
+
+/* narrow or portrait screens: smaller arrows, label above the dots */
+@media (max-width: 640px), (max-aspect-ratio: 1 / 1) {
+  :root {
+    --round: 3.6rem;
+  }
+
+  .g-dock {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .g-label {
+    max-width: none;
+  }
+
+  .g-dots {
+    align-self: center;
+  }
+
+  .g-hint {
+    bottom: calc(max(var(--edge), env(safe-area-inset-bottom)) + 11rem);
+  }
+
+  .g-bar .g-btn {
+    padding: 0 1rem;
+    font-size: 0.95rem;
+  }
+
+  .g-btn--primary {
+    padding: 0 2.2rem;
+  }
+}
+
+/* ───────── states ───────── */
+.g-fatal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  text-align: center;
+  background: var(--paper);
+}
+
+.g-fatal h1 {
+  margin: 0;
+  font: 700 1.8rem/1.2 var(--serif);
+}
+
+.g-fatal p {
+  margin: 0;
+  max-width: 28rem;
+}
+
+.g-perf {
+  position: fixed;
+  left: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 10;
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  color: #d9ffe0;
+  background: rgb(0 0 0 / 0.65);
+  font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace;
+  pointer-events: none;
+}
