@@ -57,18 +57,14 @@ export function Tour({ index, arrived, hint, musicOn, autoOn, onPrev, onNext, on
       </p>
 
       <div className="g-dock">
-        <div className={`g-label${arrived ? '' : ' is-away'}`} aria-live="polite" aria-atomic="true">
-          <span className="g-sr">{announce}</span>
-          <h2 className="g-label__title" aria-hidden="true">
-            {stop.title}
-          </h2>
-          {meta && (
-            <p className="g-label__meta" aria-hidden="true">
-              {meta}
-            </p>
-          )}
-          {stop.description && <p className="g-label__text">{stop.description}</p>}
-        </div>
+        <span className="g-sr" aria-live="polite" aria-atomic="true">{arrived ? announce : ''}</span>
+        {arrived && (
+          <div className="g-label">
+            <h2 className="g-label__title">{stop.title}</h2>
+            {meta && <p className="g-label__meta">{meta}</p>}
+            {stop.description && <p className="g-label__text">{stop.description}</p>}
+          </div>
+        )}
 
         <nav className="g-dots" aria-label="Artworks">
           {stops.slice(1).map((s, i) => (

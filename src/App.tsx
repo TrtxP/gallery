@@ -16,8 +16,7 @@ const LAST = stops.length - 1 // stops[0] is the overview, 1…LAST are the artw
 
 export default function App() {
   const [phase, setPhase] = useState<'intro' | 'tour'>('intro')
-  const [index, setIndex] = useState(0)
-  const [arrived, setArrived] = useState(true)
+  const [{ index, requestId, arrived }, setNavigation] = useState({ index: 0, requestId: 0, arrived: true })
   const [ready, setReady] = useState(false)
   const [hint, setHint] = useState(false)
   const [autoOn, setAutoOn] = useState(false)
@@ -25,32 +24,29 @@ export default function App() {
   const music = useAmbientMusic()
   const { start: startMusic, stop: stopMusic } = music
 
-  const go = useCallback(
-    (i: number) => {
-      if (i === index) return
-      setIndex(i)
-      setArrived(false)
-      setHint(false)
-    },
-    [index],
-  )
+  const go = useCallback((i: number) => {
+    setNavigation((current) => {
+      if (i === current.index) return current
+      return { index: i, requestId: current.requestId + 1, arrived: false }
+    })
+    setHint(false)
+  }, [])
   const next = useCallback(() => go(index >= LAST ? 1 : index + 1), [go, index])
   const prev = useCallback(() => go(index <= 1 ? LAST : index - 1), [go, index])
 
   const enter = useCallback(() => {
     setPhase('tour')
+    go(1)
     setHint(true)
     startMusic() // a tap is the moment browsers allow sound to begin
-    go(1)
   }, [go, startMusic])
 
   const backToStart = useCallback(() => {
     setPhase('intro')
-    setIndex(0)
-    setArrived(true)
+    go(0)
     setAutoOn(false)
     stopMusic()
-  }, [stopMusic])
+  }, [go, stopMusic])
 
   const swipe = useSwipe({ enabled: phase === 'tour', onLeft: next, onRight: prev })
 
@@ -82,13 +78,15 @@ export default function App() {
   useIdleReset(bonus.kiosk && phase === 'tour', KIOSK_IDLE_MS, backToStart)
 
   const handleReady = useCallback(() => setReady(true), [])
-  const handleArrive = useCallback(() => setArrived(true), [])
+  const handleArrive = useCallback((finishedRequest: number) => {
+    setNavigation((current) => current.requestId === finishedRequest ? { ...current, arrived: true } : current)
+  }, [])
 
   return (
     <ErrorBoundary>
       <div className="g-stage" {...swipe} onContextMenu={(e) => e.preventDefault()}>
         <div className="g-canvas" aria-hidden="true">
-          <GalleryScene index={index} showStats={bonus.stats} onReady={handleReady} onArrive={handleArrive} />
+          <GalleryScene index={index} requestId={requestId} showStats={bonus.stats} onReady={handleReady} onArrive={handleArrive} />
         </div>
 
         <Intro visible={phase === 'intro'} ready={ready} progress={progress} onEnter={enter} />

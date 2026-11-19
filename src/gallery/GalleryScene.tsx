@@ -10,12 +10,13 @@ import { PerfProbe } from '../bonus/PerfProbe'
 
 interface GallerySceneProps {
   index: number
+  requestId: number
   showStats: boolean
   onReady: () => void
-  onArrive: () => void
+  onArrive: (requestId: number) => void
 }
 
-export function GalleryScene({ index, showStats, onReady, onArrive }: GallerySceneProps) {
+export function GalleryScene({ index, requestId, showStats, onReady, onArrive }: GallerySceneProps) {
   return (
     <Canvas
       // draw only when something changes (see CameraRig)
@@ -33,7 +34,7 @@ export function GalleryScene({ index, showStats, onReady, onArrive }: GallerySce
       <Suspense fallback={null}>
         <Room onReady={onReady} />
       </Suspense>
-      <CameraRig index={index} onArrive={onArrive} />
+      <CameraRig index={index} requestId={requestId} onArrive={onArrive} />
       {showStats && <PerfProbe />}
     </Canvas>
   )

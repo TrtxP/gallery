@@ -105,6 +105,10 @@
   transition: opacity 0.55s ease, visibility 0s 0.55s;
 }
 
+.g-intro.is-hidden .g-intro__head {
+  visibility: hidden;
+}
+
 .g-intro__head {
   max-width: 30rem;
 }
@@ -252,13 +256,13 @@
   color: var(--ink);
   background: var(--paper);
   box-shadow: 0 10px 30px rgb(0 0 0 / 0.22);
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  animation: g-in 0.24s ease both;
 }
 
-.g-label.is-away {
-  opacity: 0;
-  transform: translateY(0.6rem);
-  transition-duration: 0.18s;
+@media (prefers-reduced-motion: reduce) {
+  .g-label {
+    animation: none;
+  }
 }
 
 .g-label__title {
@@ -281,6 +285,7 @@
 .g-dots {
   display: flex;
   gap: 0.1rem;
+  margin-inline-start: auto;
   padding: 0.2rem 0.5rem;
   border: 1px solid var(--glass-line);
   border-radius: 999px;
@@ -334,6 +339,7 @@
 
   .g-dots {
     align-self: center;
+    margin-inline-start: 0;
   }
 
   .g-hint {

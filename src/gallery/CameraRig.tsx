@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { FOV, obstacles, room, stops } from './data'
 import { fitPose, startTravel, stepTravel, type Pose, type Travel } from './cameraPath'
@@ -6,8 +6,8 @@ import { fitPose, startTravel, stepTravel, type Pose, type Travel } from './came
 interface CameraRigProps {
   /** Index into `stops` the camera should be at (0 = overview). */
   index: number
-  /** Called once when a glide has finished. */
-  onArrive: () => void
+  requestId: number
+  onArrive: (requestId: number) => void
 }
 
 const bounds = { halfWidth: room.width / 2, halfLength: room.length / 2 }
@@ -18,43 +18,44 @@ const prefersReducedMotion = (): boolean => window.matchMedia('(prefers-reduced-
  * so nothing is drawn while the visitor is just looking at a picture: it only renders while
  * a glide is running. That keeps a kiosk cool and battery-friendly.
  */
-export function CameraRig({ index, onArrive }: CameraRigProps) {
+export function CameraRig({ index, requestId, onArrive }: CameraRigProps) {
   const camera = useThree((s) => s.camera)
   const width = useThree((s) => s.size.width)
   const height = useThree((s) => s.size.height)
   const invalidate = useThree((s) => s.invalidate)
 
   const pose = useRef<Pose>({ position: camera.position.clone(), target: camera.position.clone() })
-  const travel = useRef<Travel | null>(null)
-  const lastIndex = useRef<number | null>(null)
+  const travel = useRef<{ path: Travel; requestId: number } | null>(null)
+  const lastRequest = useRef<number | null>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const to = fitPose(stops[index], width / height, FOV, bounds)
-    const isNewStop = lastIndex.current !== null && lastIndex.current !== index
-    lastIndex.current = index
+    const isNewRequest = lastRequest.current !== null && lastRequest.current !== requestId
+    lastRequest.current = requestId
 
-    if (isNewStop) {
-      travel.current = startTravel(pose.current, to, obstacles, prefersReducedMotion())
+    if (isNewRequest) {
+      travel.current = { path: startTravel(pose.current, to, obstacles, prefersReducedMotion()), requestId }
     } else {
-      // first placement, or only the window was resized: jump straight to the framed pose
+      const interrupted = travel.current
       travel.current = null
       pose.current.position.copy(to.position)
       pose.current.target.copy(to.target)
       camera.position.copy(to.position)
       camera.lookAt(to.target)
+      if (interrupted) onArrive(interrupted.requestId)
     }
     invalidate()
-  }, [index, width, height, camera, invalidate])
+  }, [index, requestId, width, height, camera, invalidate, onArrive])
 
   useFrame(() => {
     const current = travel.current
     if (!current) return
-    const arrived = stepTravel(current, performance.now(), pose.current)
+    const arrived = stepTravel(current.path, performance.now(), pose.current)
     camera.position.copy(pose.current.position)
     camera.lookAt(pose.current.target)
     if (arrived) {
       travel.current = null
-      onArrive()
+      onArrive(current.requestId)
     } else {
       invalidate()
     }
