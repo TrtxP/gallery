@@ -4,8 +4,8 @@
 //
 // Usage:  npm run sync:blender
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -23,18 +23,29 @@ if (!existsSync(srcGlb) || !existsSync(srcJson)) {
 
 mkdirSync(dirname(outGlb), { recursive: true })
 console.log(`Optimizing ${kb(srcGlb)} …`)
-const result = spawnSync(
-  'npx',
-  [
-    '--yes', '@gltf-transform/cli', 'optimize', srcGlb, outGlb,
-    '--compress', 'meshopt',      // ~4x smaller geometry, decoded by three.js with no extra files
-    '--texture-compress', 'webp', // ~3x smaller textures than JPEG/PNG
-    '--texture-size', '2048',
-    '--simplify', 'false',        // polygons were already reduced in Blender
-  ],
-  { stdio: 'inherit', shell: true, cwd: root },
-)
-if (result.status !== 0) process.exit(result.status ?? 1)
+function transform(command, input, output, ...options) {
+  const result = spawnSync(
+    'npx', ['--yes', '@gltf-transform/cli', command, relative(root, input), relative(root, output), ...options],
+    { stdio: 'inherit', shell: true, cwd: root },
+  )
+  if (result.error) throw result.error
+  if (result.status !== 0) throw new Error(`glTF Transform ${command} failed`)
+}
+
+const temp = mkdtempSync(join(dirname(outGlb), '.gallery-'))
+const resized = join(temp, 'resized.glb')
+const textured = join(temp, 'textured.glb')
+const optimized = join(temp, 'optimized.glb')
+try {
+  transform('resize', srcGlb, resized, '--width', '3072', '--height', '3072')
+  // Encode once from the baked PNGs to keep gradients and brush strokes free of visible blocks.
+  transform('webp', resized, textured, '--quality', '94', '--effort', '80')
+  transform('optimize', textured, optimized, '--compress', 'meshopt', '--texture-compress', 'false', '--simplify', 'false')
+  renameSync(optimized, outGlb)
+} finally {
+  for (const file of [resized, textured, optimized]) rmSync(file, { force: true })
+  rmdirSync(temp)
+}
 
 const data = JSON.parse(readFileSync(srcJson, 'utf8'))
 if (!data.obstacles) {

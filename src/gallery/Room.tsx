@@ -6,20 +6,24 @@ import { MODEL_URL } from './data'
 
 /**
  * Everything in the exported scene is lit by Blender: the light is baked into the textures.
- * So every material becomes a plain MeshBasicMaterial (it just shows the texture) and the
- * scene needs no lights at all. That is the cheapest possible fragment shader.
+ * Current exports declare unlit materials. Older exports need their base-color texture
+ * copied into an unlit material so they display with the same baked lighting.
  */
-function bakeToUnlit(root: Object3D, maxAnisotropy: number): void {
+function prepareRoomMaterials(root: Object3D, maxAnisotropy: number): void {
   root.traverse((obj) => {
     const mesh = obj as Mesh
     if (!mesh.isMesh) return
     const old = mesh.material as Material | Material[]
-    if (Array.isArray(old) || (old as MeshBasicMaterial).isMeshBasicMaterial) return
+    if (Array.isArray(old)) return
 
     const map = (old as { map?: MeshBasicMaterial['map'] }).map ?? null
     if (map) map.anisotropy = Math.min(8, maxAnisotropy) // sharp wooden floor at grazing angles
-    mesh.material = new MeshBasicMaterial({ map, toneMapped: false })
-    old.dispose()
+    if ((old as MeshBasicMaterial).isMeshBasicMaterial) {
+      old.toneMapped = false
+    } else {
+      mesh.material = new MeshBasicMaterial({ map, toneMapped: false })
+      old.dispose()
+    }
 
     // the room never moves: skip per-frame matrix updates
     mesh.updateMatrix()
@@ -39,7 +43,7 @@ export function Room({ onReady }: RoomProps) {
   const maxAnisotropy = useThree((s) => s.gl.capabilities.getMaxAnisotropy())
 
   useLayoutEffect(() => {
-    bakeToUnlit(scene, maxAnisotropy)
+    prepareRoomMaterials(scene, maxAnisotropy)
     onReady()
   }, [scene, maxAnisotropy, onReady])
 

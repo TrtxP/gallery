@@ -4,14 +4,13 @@ build_gallery.py  -  builds the whole 3D art gallery in Blender and exports it f
 What it does (one run, no manual clicking):
   1. Builds a realistic gallery room (10 x 14 x 4 m): floor, walls, ceiling, a big window with
      mullions, a freestanding partition, skirting boards.
-  2. Creates CUSTOM models: a wooden chair and a lathe-turned vase on a pedestal.
+  2. Creates custom geometry for a wooden chair and the display stands.
   3. Imports EXTERNAL models you downloaded (assets/models/*.glb|gltf) and auto-fits their size
      and polygon count.
   4. Creates 6 artworks + frames (procedural placeholder paintings, or your own images from
      assets/artworks/art_01.jpg ... art_06.jpg).
-  5. Lights the scene (sun through the window, sky, ceiling fill, one spotlight per artwork)
-     and BAKES the lighting + procedural textures into 3 textures (floor / shell / props),
-     so Three.js needs NO lights at all.
+  5. Lights the scene with daylight, ceiling fill and gallery spotlights, then bakes lighting
+     and materials into room and model textures so Three.js needs no lights.
   6. Exports build/gallery.glb  and  build/gallery.json  (camera viewpoints + artwork info).
 
 Run:
@@ -32,7 +31,7 @@ Folders next to this script:
     assets/models/     put downloaded models here (see EXTERNAL_MODELS below)
     assets/artworks/   optional own paintings: art_01.jpg ... art_06.jpg (png / webp also fine)
 
-Tested with Blender 5.0 (bpy). Written to also work on Blender 4.2 LTS+.
+Tested with Blender 5.2 LTS. Written to also work on Blender 4.2 LTS+.
 """
 import argparse
 import glob
@@ -66,20 +65,27 @@ EYE_H = 1.6                                    # camera height for the visitor
 ART_H = 1.55                                   # artwork centre height (museum standard)
 PART_Y, PART_W, PART_T, PART_H = -0.5, 4.4, 0.12, 3.2   # freestanding partition
 
-# Texture sizes of the three baked atlases (width, height). Floor ratio = 10:14 -> square texels.
+# Bake sizes (width, height). Floor ratio = 10:14 -> square texels.
 RES_FLOOR = (2560, 3584)
 RES_SHELL = (2048, 2048)
-RES_PROPS = (2048, 2048)
+RES_PROPS = (1536, 1536)
+RES_MODEL = (2048, 2048)
 
 # External (downloaded) models. Put the files into assets/models/ .
 #   file   : name without extension  (armchair -> armchair.glb | armchair.gltf | armchair/*.gltf)
-#   xy     : position on the floor (Blender coordinates, meters)
+#   xy, z  : position of the model's base (Blender coordinates, meters)
 #   rot    : rotation around Z in degrees
 #   height : the model is scaled so its height is exactly this many meters
-# Where to get them (free, CC0): https://polyhaven.com/models  or  https://sketchfab.com (downloadable)
+#   spot_power: accent spotlight power in watts
+#   bake_source_uv: reuse a non-overlapping source UV layout for the web bake
 EXTERNAL_MODELS = [
-    dict(file="armchair", xy=(4.2, 3.3), rot=-53, height=0.85),
-    dict(file="sculpture", xy=(-4.2, 3.3), rot=53, height=1.25),
+    # https://polyhaven.com/a/modern_arm_chair_01 — Vibrant Nordic, CC0
+    dict(file="armchair", name="Armchair", xy=(4.02, 3.55), z=0.0, rot=-72, height=1.02, spot_power=60),
+    # https://polyhaven.com/a/horse_head — Tina, CC0
+    dict(file="sculpture", name="Horse_Head", xy=(-4.10, 3.40), z=0.99, rot=27, height=0.66, spot_power=85),
+    # https://polyhaven.com/a/antique_ceramic_vase_01 — James Ray Cock, CC0
+    dict(file="vase", name="Vase", xy=(4.10, -1.10), z=1.024, rot=-24, height=0.54, spot_power=42,
+         bake_source_uv=True),
 ]
 MAX_TRIS_PER_MODEL = 25000                     # bigger models get decimated automatically
 
@@ -206,6 +212,11 @@ def mat_plaster(name, tint=(0.93, 0.92, 0.89)):
     col = color_ramp(nt, noise.outputs["Fac"], [
         (0.35, (t[0] * 0.93, t[1] * 0.93, t[2] * 0.93, 1)), (0.65, (t[0], t[1], t[2], 1))])
     nt.links.new(col, bsdf.inputs["Base Color"])
+    bump = nt.nodes.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.16
+    bump.inputs["Distance"].default_value = 0.008
+    nt.links.new(noise.outputs["Fac"], bump.inputs["Height"])
+    nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
     return m
 
 
@@ -228,9 +239,10 @@ def mat_wood(name, dark, light, planks=False):
         brick.offset_frequency = 2
         brick.inputs["Color1"].default_value = dark
         brick.inputs["Color2"].default_value = light
-        brick.inputs["Mortar"].default_value = (0.05, 0.03, 0.02, 1)
+        brick.inputs["Mortar"].default_value = (0.09, 0.06, 0.035, 1)
         brick.inputs["Scale"].default_value = 1.0
-        brick.inputs["Mortar Size"].default_value = 0.004
+        brick.inputs["Mortar Size"].default_value = 0.0025
+        brick.inputs["Mortar Smooth"].default_value = 0.0015
         brick.inputs["Bias"].default_value = 0.0
         brick.inputs["Brick Width"].default_value = 1.6
         brick.inputs["Row Height"].default_value = 0.18
@@ -242,27 +254,22 @@ def mat_wood(name, dark, light, planks=False):
     return m
 
 
-def mat_ceramic(name):
-    m, nt, bsdf = new_mat(name, rough=0.15)
-    tc = nt.nodes.new("ShaderNodeTexCoord")
-    noise = nt.nodes.new("ShaderNodeTexNoise")
-    noise.inputs["Scale"].default_value = 5.0
-    noise.inputs["Detail"].default_value = 3.0
-    nt.links.new(tc.outputs["Object"], noise.inputs["Vector"])
-    col = color_ramp(nt, noise.outputs["Fac"], [
-        (0.35, (0.01, 0.12, 0.17, 1)), (0.65, (0.03, 0.34, 0.33, 1))])
-    nt.links.new(col, bsdf.inputs["Base Color"])
-    return m
-
-
 def mat_image(name, image, rough=1.0):
-    """Principled material with one image in Base Color (used for baked atlases and artworks)."""
+    """Principled material with one image in Base Color."""
     m, nt, bsdf = new_mat(name, rough=rough)
     tex = nt.nodes.new("ShaderNodeTexImage")
     tex.image = image
     tex.extension = "EXTEND"
     nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
     return m
+
+
+def make_unlit(mat):
+    nt = mat.node_tree
+    tex = next(node for node in nt.nodes if node.type == "TEX_IMAGE")
+    output = nt.nodes.get("Material Output")
+    # Blender converts the color socket to emission and glTF exports it as KHR_materials_unlit.
+    nt.links.new(tex.outputs["Color"], output.inputs["Surface"])
 
 
 # =============================================================================================
@@ -406,31 +413,26 @@ def build_chair(xy, rot_deg, m_wood):
     return mesh_object("Chair", bm, [m_wood])
 
 
-def build_vase_on_pedestal(xy, m_ceramic, m_pedestal):
-    """A lathe-turned vase (profile revolved around Z) standing on a white pedestal."""
-    ped_h = 1.0
-    # pedestal
+def build_vase_pedestal(spec, material):
+    x, y = spec["xy"]
+    cap = 0.024
+    h = spec["z"] - cap
     bm = bmesh.new()
-    bm_box(bm, (xy[0], xy[1], ped_h / 2), (0.46, 0.46, ped_h))
-    bm_box(bm, (xy[0], xy[1], 0.03), (0.54, 0.54, 0.06))              # plinth
-    bm_box(bm, (xy[0], xy[1], ped_h + 0.012), (0.52, 0.52, 0.024))    # cap
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    ped = mesh_object("Pedestal", bm, [m_pedestal])
+    bm_box(bm, (x, y, h / 2), (0.46, 0.46, h))
+    bm_box(bm, (x, y, 0.03), (0.54, 0.54, 0.06))
+    bm_box(bm, (x, y, h + cap / 2), (0.52, 0.52, cap))
+    bmesh.ops.bevel(bm, geom=bm.edges[:], offset=0.003, segments=2, affect="EDGES")
+    return mesh_object("Vase_Pedestal", bm, [material])
 
-    profile = [(0.0, 0.0), (0.085, 0.0), (0.11, 0.012), (0.17, 0.07), (0.205, 0.17), (0.19, 0.27),
-               (0.12, 0.36), (0.075, 0.43), (0.07, 0.49), (0.09, 0.545), (0.105, 0.58),
-               (0.088, 0.585), (0.06, 0.52), (0.05, 0.40), (0.0, 0.39)]
+
+def build_sculpture_plinth(spec, stone, dark):
+    x, y = spec["xy"]
+    h = spec["z"]
     bm = bmesh.new()
-    vs = [bm.verts.new((r, 0.0, z)) for r, z in profile]
-    es = [bm.edges.new((vs[i], vs[i + 1])) for i in range(len(vs) - 1)]
-    bmesh.ops.spin(bm, geom=vs + es, cent=(0, 0, 0), axis=(0, 0, 1), dvec=(0, 0, 0),
-                   angle=2 * math.pi, space=Matrix.Identity(4), steps=48, use_merge=True,
-                   use_normal_flip=False, use_duplicate=False)
-    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-5)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-    bmesh.ops.transform(bm, matrix=Matrix.Translation((xy[0], xy[1], ped_h + 0.024)), verts=bm.verts)
-    vase = mesh_object("Vase", bm, [m_ceramic], smooth=True)
-    return [ped, vase]
+    bm_box(bm, (x, y, 0.018), (0.63, 0.63, 0.036), mat=1)
+    bm_box(bm, (x, y, (h + 0.036) / 2), (0.67, 0.67, h - 0.036))
+    bmesh.ops.bevel(bm, geom=bm.edges[:], offset=0.005, segments=2, affect="EDGES")
+    return mesh_object("Sculpture_Plinth", bm, [stone, dark])
 
 
 # =============================================================================================
@@ -531,7 +533,7 @@ def artwork_image(spec, tex_dir, idx):
     return img
 
 
-def build_artwork(spec, idx, tex_dir, m_frame):
+def build_artwork(spec, idx, tex_dir):
     """Returns (picture_object, frame_bmesh, light_target, viewpoint_dict_part)."""
     n = Vector((spec["normal"][0], spec["normal"][1], 0)).normalized()
     up = Vector((0, 0, 1))
@@ -603,12 +605,12 @@ def import_external(spec):
     if not meshes:
         log(f"'{spec['file']}' has no meshes - skipped")
         return []
-    # fit: bottom-centre to the given floor spot, uniform scale to the requested height, rotate
+    # Fit the bottom centre to the display location, then scale to height and turn towards the aisle.
     pts = [v.co for o in meshes for v in o.data.vertices]
     mn = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
     mx = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
     s = spec["height"] / max(mx.z - mn.z, 1e-6)
-    M = (Matrix.Translation((spec["xy"][0], spec["xy"][1], 0)) @ Matrix.Rotation(math.radians(spec["rot"]), 4, "Z")
+    M = (Matrix.Translation((*spec["xy"], spec["z"])) @ Matrix.Rotation(math.radians(spec["rot"]), 4, "Z")
          @ Matrix.Scale(s, 4) @ Matrix.Translation((-(mn.x + mx.x) / 2, -(mn.y + mx.y) / 2, -mn.z)))
     for o in meshes:
         o.data.transform(M)
@@ -644,30 +646,51 @@ def add_light(name, kind, loc, energy, color=(1, 1, 1), direction=None, **props)
     return ob
 
 
-def build_lights(art_info, exposure):
+def build_lights(art_info, model_specs, exposure, housing, lens):
     sc = bpy.context.scene
     # sky (what lights the room through the window besides the sun)
     w = bpy.data.worlds.new("Sky")
     if w.node_tree is None:
         w.use_nodes = True
     bg = w.node_tree.nodes["Background"]
-    bg.inputs[0].default_value = (0.55, 0.70, 1.0, 1.0)
-    bg.inputs[1].default_value = 0.9 * exposure
+    bg.inputs[0].default_value = (0.72, 0.82, 1.0, 1.0)
+    bg.inputs[1].default_value = 0.65 * exposure
     sc.world = w
     # sun coming through the big window: travels towards -Y, slightly +X, downwards
-    add_light("Sun", "SUN", (0, HL + 10, 10), 3.6 * exposure, color=(1.0, 0.94, 0.85),
-              direction=(0.35, -0.75, -0.55), angle=math.radians(1.6))
-    # soft ceiling fill (two long area strips)
+    add_light("Sun", "SUN", (0, HL + 10, 10), 2.4 * exposure, color=(1.0, 0.94, 0.83),
+              direction=(0.41, -0.82, -0.50), angle=math.radians(3.8))
+    add_light("Window_Daylight", "AREA", (0, HL + WALL_T + 0.15, 2.05), 425 * exposure,
+              color=(0.84, 0.91, 1.0), direction=(0, -1, -0.14), shape="RECTANGLE", size=5.7, size_y=2.75)
+    # Broad overhead fill keeps the foreground legible while leaving room for the wall washes.
     for i, x in enumerate((-2.5, 2.5)):
-        add_light(f"Fill_{i}", "AREA", (x, 0, ROOM_H - 0.03), 90 * exposure, color=(1.0, 0.93, 0.82),
-                  direction=(0, 0, -1), shape="RECTANGLE", size=1.0, size_y=9.0)
-    # one gallery spotlight per artwork (wall-wash + the typical "scallop" on the wall)
+        add_light(f"Fill_{i}", "AREA", (x, -0.6, ROOM_H - 0.025), 145 * exposure,
+                  color=(1.0, 0.97, 0.91), direction=(0, 0, -1), shape="RECTANGLE", size=1.7, size_y=9.0)
+
+    fixture = bmesh.new()
+    for x in (-3.05, 3.05):
+        bm_box(fixture, (x, -0.5, ROOM_H - 0.023), (0.046, 9.0, 0.046))
+    bm_box(fixture, (0, PART_Y, ROOM_H - 0.023), (0.046, 4.35, 0.046))
+
+    def spot(name, loc, target, power, angle, blend):
+        direction = (Vector(target) - loc).normalized()
+        arm = loc + Vector((0, 0, 0.12))
+        bm_beam(fixture, (loc.x, loc.y, ROOM_H - 0.046), arm, 0.015, 0.015)
+        bm_beam(fixture, arm - direction * 0.05, loc + direction * 0.05, 0.044, 0.046, segs=18)
+        bm_beam(fixture, loc + direction * 0.049, loc + direction * 0.054, 0.033, 0.035, segs=18, mat=1)
+        add_light(name, "SPOT", loc + direction * 0.08, power * exposure, color=(1.0, 0.94, 0.84),
+                  direction=direction, spot_size=math.radians(angle), spot_blend=blend, shadow_soft_size=0.10)
+
     for a in art_info:
-        loc = Vector(a["base"]) + a["n"] * 1.7
-        loc.z = ROOM_H - 0.2
-        add_light(f"Spot_{a['id']}", "SPOT", loc, 260 * exposure, color=(1.0, 0.90, 0.76),
-                  direction=Vector(a["base"]) - loc, spot_size=math.radians(62), spot_blend=0.65,
-                  shadow_soft_size=0.12)
+        loc = a["base"] + a["n"] * 1.95
+        loc.z = ROOM_H - 0.26
+        spot(f"Spot_{a['id']}", loc, a["base"], 125, 70, 0.83)
+
+    for spec in model_specs:
+        x, y = spec["xy"]
+        loc = Vector((math.copysign(3.05, x), y - 0.9, ROOM_H - 0.26))
+        target = (x, y, spec["z"] + 0.6 * spec["height"])
+        spot(f"Spot_{spec['name']}", loc, target, spec["spot_power"], 58, 0.8)
+    return mesh_object("Track_Lights", fixture, [housing, lens])
 
 
 # =============================================================================================
@@ -728,7 +751,7 @@ def add_bake_uv_floor(obj):
             uv.data[li].uv = ((co.x + HW) / ROOM_W, (co.y + HL) / ROOM_L)
 
 
-def bake_object(obj, name, size, margin, tex_dir, reuse=False):
+def bake_object(obj, name, size, margin, tex_dir, *, reuse=False, glossy=False):
     existing = os.path.join(tex_dir, f"bake_{name}.png")
     if reuse and os.path.exists(existing):
         img = bpy.data.images.load(existing)
@@ -737,31 +760,34 @@ def bake_object(obj, name, size, margin, tex_dir, reuse=False):
         img.pack()
         log(f"reusing existing bake '{name}' ({img.size[0]}x{img.size[1]})")
         return img
-    img = bpy.data.images.new(f"bake_{name}", size[0], size[1], alpha=False)
-    img.colorspace_settings.name = "sRGB"
+    img = bpy.data.images.new(f"bake_{name}_linear", size[0], size[1], alpha=False, float_buffer=True)
     me = obj.data
     me.uv_layers.active = me.uv_layers["BakeUV"]
     select_only([obj])
     temp = []
-    for slot in obj.material_slots:
-        if slot.material:
-            nt = slot.material.node_tree
-            node = nt.nodes.new("ShaderNodeTexImage")
-            node.image = img
-            node.select = True
-            nt.nodes.active = node
-            temp.append((nt, node))
+    for material in {slot.material for slot in obj.material_slots if slot.material}:
+        nt = material.node_tree
+        node = nt.nodes.new("ShaderNodeTexImage")
+        node.image = img
+        node.select = True
+        nt.nodes.active = node
+        temp.append((nt, node))
     t0 = time.time()
     log(f"baking '{name}'  {size[0]}x{size[1]} ...")
-    op(bpy.ops.object.bake, type="COMBINED", pass_filter={"DIRECT", "INDIRECT", "DIFFUSE", "EMIT"},
-       margin=margin, margin_type="EXTEND", use_clear=True)
+    passes = {"DIRECT", "INDIRECT", "DIFFUSE", "EMIT"}
+    if glossy:
+        passes.add("GLOSSY")
+    op(bpy.ops.object.bake, type="COMBINED", pass_filter=passes,
+       uv_layer="BakeUV", margin=margin, margin_type="EXTEND", use_clear=True)
     log(f"  done in {time.time() - t0:.0f}s")
     for nt, node in temp:
         nt.nodes.remove(node)
-    img.filepath_raw = os.path.join(tex_dir, f"bake_{name}.png")
-    img.file_format = "PNG"
-    img.save()
-    return img
+    # Keep highlight values above 1 until AgX maps them to the display range.
+    img.save_render(existing, scene=bpy.context.scene)
+    bpy.data.images.remove(img)
+    result = bpy.data.images.load(existing)
+    result.name = f"bake_{name}"
+    return result
 
 
 def finalize_baked(obj, img, name):
@@ -771,10 +797,10 @@ def finalize_baked(obj, img, name):
         me.uv_layers.remove(me.uv_layers[n])
     me.materials.clear()
     mat = mat_image(f"M_baked_{name}", img, rough=1.0)
+    make_unlit(mat)
     me.materials.append(mat)
     for p in me.polygons:
         p.material_index = 0
-    return mat
 
 
 def setup_gpu():
@@ -801,36 +827,18 @@ def setup_gpu():
 # =============================================================================================
 #  preview render (optional): shows the baked result exactly as Three.js will show it (unlit)
 # =============================================================================================
-def render_previews(out_dir, views, extra_mats):
+def render_previews(out_dir, views):
     sc = bpy.context.scene
     for o in bpy.data.objects:
         if o.type == "LIGHT":
             o.hide_render = True
-    for m in extra_mats:
-        nt = m.node_tree
-        bsdf = nt.nodes.get("Principled BSDF")
-        tex = next((n for n in nt.nodes if n.type == "TEX_IMAGE"), None)
-        if not (bsdf and tex):
-            continue
-        for lk in list(nt.links):
-            if lk.to_socket == bsdf.inputs["Base Color"]:
-                nt.links.remove(lk)
-        bsdf.inputs["Base Color"].default_value = (0, 0, 0, 1)
-        nt.links.new(tex.outputs["Color"], bsdf.inputs["Emission Color"])
-        bsdf.inputs["Emission Strength"].default_value = 1.0
-        for name in ("Specular IOR Level", "Specular"):
-            if name in bsdf.inputs:
-                bsdf.inputs[name].default_value = 0.0
     sc.world.node_tree.nodes["Background"].inputs[1].default_value = 1.0
     sc.render.resolution_x, sc.render.resolution_y = 960, 540
     sc.cycles.samples = 12
     sc.cycles.use_adaptive_sampling = False
     sc.view_settings.view_transform = "Standard"
-    cam_data = bpy.data.cameras.new("PreviewCam")
-    cam_data.angle = math.radians(80)
-    cam = bpy.data.objects.new("PreviewCam", cam_data)
-    sc.collection.objects.link(cam)
-    sc.camera = cam
+    sc.view_settings.look = "None"
+    cam = sc.camera
     for name, pos, target in views:
         cam.location = pos
         cam.rotation_euler = (Vector(target) - Vector(pos)).to_track_quat("-Z", "Y").to_euler()
@@ -860,67 +868,80 @@ def main():
     cy.samples = args.samples or (16 if args.quick else 128)
     cy.use_adaptive_sampling = True
     cy.adaptive_threshold = 0.01
-    cy.max_bounces, cy.diffuse_bounces, cy.glossy_bounces = 8, 6, 2
+    cy.max_bounces, cy.diffuse_bounces, cy.glossy_bounces = 5, 3, 2
     cy.sample_clamp_indirect = 6.0
     cy.device = "CPU"
     try:
         cy.use_denoising = True
     except Exception:  # noqa
         pass
-    sc.view_settings.view_transform = "Standard"
+    sc.view_settings.view_transform = "AgX"
+    sc.view_settings.look = "AgX - Medium High Contrast"
     if args.gpu:
         setup_gpu()
     k = args.res_scale or (1 / 8 if args.quick else 1.0)
     scale = lambda wh: (max(64, int(wh[0] * k)), max(64, int(wh[1] * k)))  # noqa: E731
-    res_floor, res_shell, res_props = scale(RES_FLOOR), scale(RES_SHELL), scale(RES_PROPS)
+    res_floor, res_shell, res_props, res_model = map(scale, (RES_FLOOR, RES_SHELL, RES_PROPS, RES_MODEL))
 
     # ---- materials
-    m_floor = mat_wood("M_FloorOak", (0.20, 0.11, 0.05, 1), (0.34, 0.20, 0.10, 1), planks=True)
-    m_wall = mat_plaster("M_Plaster")
+    m_floor = mat_wood("M_FloorOak", (0.24, 0.155, 0.085, 1), (0.36, 0.245, 0.145, 1), planks=True)
+    m_wall = mat_plaster("M_Plaster", (0.84, 0.82, 0.77))
     m_ceil = mat_plaster("M_Ceiling", (0.97, 0.97, 0.96))
     m_dark = new_mat("M_DarkMetal", (0.02, 0.02, 0.022, 1), 0.4)[0]
     m_frame = new_mat("M_FrameBlack", (0.015, 0.015, 0.017, 1), 0.45)[0]
     m_wood = mat_wood("M_ChairOak", (0.20, 0.10, 0.045, 1), (0.42, 0.25, 0.12, 1))
-    m_ceramic = mat_ceramic("M_Ceramic")
     m_pedestal = mat_plaster("M_Pedestal", (0.88, 0.88, 0.86))
+    m_stone = mat_plaster("M_PlinthStone", (0.20, 0.225, 0.22))
+    m_lens, _, lens = new_mat("M_TrackLens", (0.7, 0.64, 0.55, 1), 0.35)
+    lens.inputs["Emission Color"].default_value = (1.0, 0.88, 0.68, 1)
+    lens.inputs["Emission Strength"].default_value = 0.15
 
     # ---- geometry
     floor = build_floor(m_floor)
     shell = build_shell(m_wall, m_ceil, m_dark)
     props = [build_chair((-4.2, -1.1), 0, m_wood)]
-    props += build_vase_on_pedestal((4.1, -1.1), m_ceramic, m_pedestal)
-    ext_loaded = 0
+    models = []
     for spec in EXTERNAL_MODELS:
-        got = import_external(spec)
-        ext_loaded += 1 if got else 0
-        props += got
-    if ext_loaded == 0:
+        meshes = import_external(spec)
+        if meshes:
+            models.append((spec, join_objects(meshes, spec["name"])))
+            if spec["file"] == "vase":
+                props.append(build_vase_pedestal(spec, m_pedestal))
+            elif spec["z"] > 0:
+                props.append(build_sculpture_plinth(spec, m_stone, m_dark))
+    if not models:
         log("WARNING: no external model loaded. The assignment needs at least one - download a "
             "model (e.g. polyhaven.com/models) and put it into assets/models/ (see EXTERNAL_MODELS).")
 
     # ---- artworks + frames
     art_objs, art_info, frame_bm = [], [], bmesh.new()
     for i, spec in enumerate(ARTWORKS):
-        pic, n, r, up, base, w, h = build_artwork(spec, i, tex_dir, m_frame)
+        pic, n, r, up, base, w, h = build_artwork(spec, i, tex_dir)
         add_frame(frame_bm, base, n, r, up, w, h)
         art_objs.append(pic)
         art_info.append(dict(id=spec["id"], spec=spec, node=pic.name, n=n, base=base, w=w, h=h))
     bmesh.ops.recalc_face_normals(frame_bm, faces=frame_bm.faces[:])
+    bmesh.ops.bevel(frame_bm, geom=frame_bm.edges[:], offset=0.004, segments=2, affect="EDGES")
     props.append(mesh_object("Frames", frame_bm, [m_frame]))
 
-    # ---- lights
-    build_lights(art_info, args.exposure)
-
-    # ---- bake: Floor, Shell, Props (each its own atlas)
+    # ---- lighting and bake layouts
+    props.append(build_lights(art_info, [spec for spec, _ in models], args.exposure, m_dark, m_lens))
     props_obj = join_objects(props, "Props")
     margin = lambda res: max(2, max(res) // 256)  # noqa: E731
     add_bake_uv_floor(floor)
-    add_bake_uv_smart(shell, island_margin=2.0 * margin(res_shell) / res_shell[0])
-    add_bake_uv_smart(props_obj, island_margin=2.0 * margin(res_props) / res_props[0])
+    atlas_jobs = [("shell", shell, res_shell), ("props", props_obj, res_props)]
+    model_jobs = [(spec["file"], obj, res_model) for spec, obj in models]
+    for _, obj, res in atlas_jobs:
+        add_bake_uv_smart(obj, island_margin=2.0 * margin(res) / res[0])
+    for spec, obj in models:
+        if spec.get("bake_source_uv"):
+            obj.data.uv_layers.new(name="BakeUV", do_init=True)
+        else:
+            add_bake_uv_smart(obj, island_margin=2.0 * margin(res_model) / res_model[0])
     baked = {}
-    for name, obj, res in (("floor", floor, res_floor), ("shell", shell, res_shell), ("props", props_obj, res_props)):
-        baked[name] = (obj, bake_object(obj, name, res, margin(res), tex_dir, args.reuse_bakes))
-    baked_mats = [finalize_baked(obj, img, name) for name, (obj, img) in baked.items()]
+    for name, obj, res in [("floor", floor, res_floor)] + atlas_jobs + model_jobs:
+        baked[name] = (obj, bake_object(obj, name, res, margin(res), tex_dir,
+                                       reuse=args.reuse_bakes, glossy=name != "shell"))
     log(f"triangles: floor {tri_count(floor)}, shell {tri_count(shell)}, props {tri_count(props_obj)}")
 
     # ---- viewpoints (empties) + json
@@ -953,27 +974,49 @@ def main():
             description="", position=to_three(v["position"]), target=to_three(v["target"]),
             artwork=v["artwork"]) for v in vps])
     json_path = os.path.join(out_dir, "gallery.json")
-    with open(json_path, "w", encoding="utf-8") as f:
+    with open(json_path, "w", encoding="utf-8", newline="\n") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
 
-    # ---- export GLB
-    export_objs = [floor, shell, props_obj] + art_objs + empties
+    # Save the editable scene with the original materials, source UVs and actual lights.
+    cam_data = bpy.data.cameras.new("Gallery Camera")
+    cam_data.sensor_fit = "VERTICAL"
+    cam_data.angle_y = math.radians(55)
+    cam = bpy.data.objects.new("Gallery Camera", cam_data)
+    cam.location = vps[0]["position"]
+    cam.rotation_euler = (vps[0]["target"] - cam.location).to_track_quat("-Z", "Y").to_euler()
+    sc.collection.objects.link(cam)
+    sc.camera = cam
+    sc.render.resolution_x, sc.render.resolution_y = 1600, 900
+    for obj, _ in baked.values():
+        uv = obj.data.uv_layers
+        uv.active = next(layer for layer in real_uvs(obj.data) if layer.active_render)
+    select_only([cam])
+    bpy.ops.file.pack_all()
+    op(bpy.ops.wm.save_as_mainfile, filepath=os.path.join(out_dir, "gallery.blend"), compress=True)
+
+    # The GLB keeps only the baked textures and artwork images for on-demand rendering.
+    for name, (obj, img) in baked.items():
+        finalize_baked(obj, img, name)
+    for artwork in art_objs:
+        make_unlit(artwork.data.materials[0])
+    export_objs = [obj for obj, _ in baked.values()] + art_objs + empties
     select_only(export_objs)
     glb_path = os.path.join(out_dir, "gallery.glb")
     op(bpy.ops.export_scene.gltf, filepath=glb_path, export_format="GLB", use_selection=True,
-       export_apply=True, export_yup=True, export_image_format="JPEG", export_jpeg_quality=88,
+       export_apply=True, export_yup=True, export_image_format="AUTO",
        export_materials="EXPORT", export_cameras=False, export_lights=False, export_extras=False)
     log(f"exported {glb_path}  ({os.path.getsize(glb_path) / 1e6:.1f} MB)")
-    op(bpy.ops.wm.save_as_mainfile, filepath=os.path.join(out_dir, "gallery.blend"), compress=True)
-
     # ---- optional preview renders
     if args.preview:
-        art_mats = [o.data.materials[0] for o in art_objs]
         views = [("overview", tuple(vps[0]["position"]), tuple(vps[0]["target"])),
                  ("art_01", tuple(vps[1]["position"]), tuple(vps[1]["target"])),
                  ("art_03", tuple(vps[3]["position"]), tuple(vps[3]["target"])),
-                 ("window", (-0.5, 1.0, EYE_H), (0.3, HL, 1.9))]
-        render_previews(out_dir, views, baked_mats + art_mats)
+                 ("art_06", tuple(vps[6]["position"]), tuple(vps[6]["target"])),
+                 ("window", (-0.5, 1.0, EYE_H), (0.3, HL, 1.9)),
+                 ("horse_head", (-2.42, 2.30, 1.58), (-4.10, 3.40, 1.33)),
+                 ("armchair", (2.32, 2.28, 1.48), (4.02, 3.55, 0.58)),
+                 ("vase", (3.00, -1.84, 1.71), (4.10, -1.10, 1.27))]
+        render_previews(out_dir, views)
 
     log(f"ALL DONE in {(time.time() - t_start) / 60:.1f} min  ->  {out_dir}")
 

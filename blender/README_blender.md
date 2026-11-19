@@ -5,7 +5,7 @@ This guide explains how to install Blender, inspect the existing gallery, regene
 ## Before you begin
 
 1. Install Git and [Git LFS](https://git-lfs.com/), run `git lfs install`, and clone the repository as described in the main README. If it was cloned before Git LFS was installed, run `git lfs pull` from the project root. Models, artwork, audio, and the `.blend` file are stored with Git LFS.
-2. Install **Blender 4.2 LTS or newer**. The script states that it was tested with Blender 5.0 and written for 4.2 LTS and newer; other versions may behave differently. Check the [system requirements](https://www.blender.org/download/requirements/) for your version and hardware.
+2. Install **Blender 4.2 LTS or newer**. The current scene was tested with Blender 5.2 LTS. Check the [system requirements](https://www.blender.org/download/requirements/) for your version and hardware.
 3. To run the website or synchronize a new export, install Node.js 20 or newer and run `npm install` in the project root.
 
 ### Install Blender
@@ -23,11 +23,11 @@ Start Blender once to confirm it opens. For terminal commands, either add its in
 You do not need to rebuild the scene to review it.
 
 1. In Blender, choose **File → Open** and open `blender/build/gallery.blend` from the cloned project. Alternatively, open Blender first and use **File → Import → glTF 2.0** to inspect `blender/build/gallery.glb`.
-2. Use the Outliner to find the room objects `Floor`, `Shell`, and `Props`, the six `Art_01`–`Art_06` objects, and `Viewpoint_00`–`Viewpoint_06`. The saved Blender scene also contains the lighting used during baking; the exported GLB excludes lights and cameras.
+2. Use the Outliner to find the room objects `Floor`, `Shell`, and `Props`, the `Armchair`, `Horse_Head`, and `Vase` models, the six `Art_01`–`Art_06` objects, and `Viewpoint_00`–`Viewpoint_06`. The `.blend` packs the source textures and retains the original materials, lights, and gallery camera. The GLB uses baked, unlit materials.
 3. Orbit with the middle mouse button and zoom with the wheel. Select an object in the Outliner to inspect it; use **View → Frame Selected** to focus on it. Switch the viewport to **Material Preview** to inspect textures.
 4. Check `blender/build/gallery.json` for the room dimensions, partition obstacle, and seven viewpoints. Coordinates are exported for glTF/Three.js with Y up; the conversion from Blender is `(x, z, -y)`.
 
-The generated `blender/build/textures/` directory is ignored by Git. If the `.blend` file reports missing images or materials appear pink, generate a fresh scene as described below and open the resulting `.blend` alongside its generated `textures/` directory. The exported GLB is a separate option for inspecting the scene.
+The generated `blender/build/textures/` directory is ignored by Git. Fresh `.blend` builds pack their images and can be opened on their own.
 
 ## Scene overview
 
@@ -35,12 +35,12 @@ The generated `blender/build/textures/` directory is ignored by Git. If the `.bl
 | --- | --- |
 | Architecture | A 10 × 14 × 4 m room with floor, walls, ceiling, a 6 m wide window, and a freestanding partition. The visitor's eye height is 1.6 m; artwork centers are at 1.55 m. |
 | Artwork | Six framed paintings use images from `assets/artworks/`. Their position, maximum size, title, artist, and year are configured in `ARTWORKS` in `build_gallery.py`. |
-| Models | The script creates a wooden chair and a vase on a pedestal. It also imports the supplied armchair and horse-head sculpture from `assets/models/`. |
-| Lighting | Sunlight, sky, ceiling fill, and spotlights illuminate the scene during baking. Procedural materials include wood, plaster, and ceramic. |
-| Baking | Cycles bakes the floor, shell, and props into three texture atlases. The individual artwork images remain separate. The website displays these textures with unlit materials. |
+| Models | The script creates a wooden chair and two stands. It imports [Modern Arm Chair 01](https://polyhaven.com/a/modern_arm_chair_01) by Vibrant Nordic, [Horse Head](https://polyhaven.com/a/horse_head) by Tina, and [Antique Ceramic Vase 01](https://polyhaven.com/a/antique_ceramic_vase_01) by James Ray Cock (Poly Haven, CC0). |
+| Lighting | Sunlight and soft window light mix with broad ceiling fill and warm track spots. The paintings and imported models have their own spots. |
+| Baking | Cycles bakes the floor, shell, props, armchair, bust, and vase into six textures and maps the highlights with AgX. The imported models have dedicated atlases that retain the response of their source normal, roughness, and metallic maps. The vase uses its original UV layout for the bake. Artwork images are exported individually. |
 | Navigation | The JSON export describes an overview and six artwork viewpoints, plus the partition obstacle. The web camera uses these data to frame the artworks and route around the partition. |
 
-At full resolution, the floor atlas is 2560 × 3584 pixels; the shell and props atlases are each 2048 × 2048 pixels. Baking can take considerable time and memory, depending on the computer and settings.
+At full resolution, the floor atlas is 2560 × 3584 pixels. The shell and each imported model use a 2048 × 2048 atlas, and the props atlas is 1536 × 1536. Baking can take considerable time and memory, depending on the computer and settings.
 
 ## Generate a review copy
 
@@ -75,7 +75,11 @@ blender/review-build/
   preview_overview.png  overview render
   preview_art_01.png    first artwork render
   preview_art_03.png    third artwork render
+  preview_art_06.png    Weather Report render
   preview_window.png    window render
+  preview_horse_head.png  bronze bust and plinth
+  preview_armchair.png    oak and leather armchair
+  preview_vase.png        glazed ceramic vase and pedestal
 ```
 
 Open the preview images and the generated `.blend` or GLB to check composition, lighting, models, and artwork framing. The preview renders simulate the baked, unlit appearance used by the site. The review directory is a local generated output and may appear as untracked files in Git.
@@ -92,16 +96,25 @@ Add these options after `--` in the commands above:
 | `--exposure 1.4` | Multiply light power; use a lower value such as `0.7` for a darker result. The default is `1.0`. |
 | `--gpu` | Try GPU baking using an available OptiX, CUDA, HIP, Metal, or oneAPI device; the script falls back to CPU if none is usable. |
 | `--reuse-bakes` | Reuse existing `textures/bake_*.png` files in the chosen output directory. Use only when the relevant geometry, lighting, and desired resolution have not changed. |
-| `--preview` | Render the four preview PNGs after export. |
+| `--preview` | Render the overview, three artworks, the window, and the three imported models after export. |
 | `--out DIR` | Choose the output directory. Without this option the script writes to `blender/build/`. |
 
 For a higher-quality build, remove `--quick`, optionally set `--res-scale` and `--samples`, and keep a separate output directory until you are ready to update the project. Do not use `--reuse-bakes` after changing the scene's geometry or lighting: old textures can hide those changes.
 
 ## Change artwork or external models
 
+- The `Weather Report` texture (`assets/artworks/art_06.png`, 1499 × 1049 pixels) was created with the built-in ImageGen tool using the previous image as a reference.
+
+  <details>
+  <summary>Weather Report image prompt</summary>
+
+  > Use case: style-transfer. Redesign the reference as the high-resolution image texture of the fictional contemporary gallery painting Weather Report. Keep the reference's continuous abstract golden weather field, warm yellow-ochre light coming through atmospheric charcoal masses, with restrained earthy olive at a few edges, no literal horizon, silhouettes or objects. Translate the rounded low-resolution patches into a purposeful modern oil painting. Broad expressive layered storm bands sweeping across the canvas, fine visible bristle strokes, dry brush marks and variations in pigment at close range, rich dark indigo-brown, warm muted ochre and small areas of pale honey. Painterly full-bleed flat scan, landscape 10:7 composition, high resolution and crisp organic texture, direct frontal orthographic image with even capture lighting. No text, frame, border, wall, signature or mockup. Fill entire image with the artwork.
+
+  </details>
+
 - The repository already contains six placeholder images under `blender/assets/artworks/`. Replace them with `art_01` through `art_06` in JPG, JPEG, PNG, or WebP format. The script checks extensions in that order, so remove an older file with a higher-priority extension if it should no longer be used. It preserves each image's aspect ratio inside the configured frame. If an image is missing, the script generates a placeholder.
 - Edit `ARTWORKS` in `blender/build_gallery.py` to change titles, artists, years, positions, and maximum sizes. Regenerate the scene to apply these changes.
-- The supplied models are in `blender/assets/models/armchair/` and `blender/assets/models/sculpture/`. The `EXTERNAL_MODELS` list controls their names, floor positions, rotations, and target heights. The script looks for a matching `.glb` or `.gltf` either directly in `assets/models/` or inside a matching subdirectory. Keep any referenced `.bin` and texture files alongside a `.gltf` model.
+- The supplied models are in `blender/assets/models/armchair/`, `blender/assets/models/sculpture/`, and `blender/assets/models/vase/`. The vase includes Poly Haven's 4K base color, normal, and packed material textures. The `EXTERNAL_MODELS` list controls the names, base positions, rotations, and target heights. The script looks for a matching `.glb` or `.gltf` either directly in `assets/models/` or inside a matching subdirectory. Keep any referenced `.bin` and texture files alongside a `.gltf` model.
 - Imported meshes are scaled to their configured height and reduced when they exceed the target of 25,000 triangles per model. If a model is missing, the script logs a message and skips it; check the terminal output when reviewing the scene.
 
 ## Test the scene in the website

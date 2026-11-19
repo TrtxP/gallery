@@ -45,7 +45,7 @@ After the last artwork, moving forward returns to the first. Moving backward fro
 ```text
 blender/
   build_gallery.py      the complete Blender project in one script (room, lighting, models, baking, export)
-  assets/models/        downloaded models (armchair, horse head); assets/artworks/ contains the paintings
+  assets/models/        downloaded models (armchair, horse head, ceramic vase); assets/artworks/ contains the paintings
   build/                generated output: gallery.glb, gallery.json, gallery.blend
 public/
   models/gallery.glb    scene used by the site (compressed with meshopt + WebP)
@@ -69,30 +69,30 @@ npm run sync:blender
 ```
 
 Edit artwork titles, artists, and years in the `ARTWORKS` list in `blender/build_gallery.py`. Place your own paintings in `blender/assets/artworks/art_01.jpg … art_06.jpg`.
-For the best quality, run Blender without `--quick`, for example with `--res-scale 1.0` to use full-resolution textures. This takes 10–40 minutes.
+For full-resolution textures, run Blender without `--quick` and use `--res-scale 1.0`. Bake time depends on the resolution, samples, and available hardware.
 
 ## Requirements checklist
 
 | Requirement | Implementation |
 | --- | --- |
 | Blender scene: room with walls, ceiling, and floor at realistic proportions | `build_gallery.py`: room 10 × 14 × 4 m, 6 m window, partition; eye level 1.6 m, paintings at 1.55 m |
-| Lighting and textures | Sunlight through the window, sky, ceiling lighting, and a spotlight for each painting. Procedural textures include plank flooring, plaster, wood, and ceramic |
-| External 3D model | `blender/assets/models/`: `modern_arm_chair_01` armchair and `horse_head` (judging by their filenames, these are CC0 models from Poly Haven). The script fits each model to size and places it on the floor |
-| Custom model | Wooden chair (tapered legs, slatted back, stretchers) and a vase turned from a profile, displayed on a pedestal |
+| Lighting and textures | Window daylight, ceiling fill, and track spots for the paintings and display objects. Procedural materials include oak flooring, plaster, and stone |
+| External 3D models | Poly Haven's [Modern Arm Chair 01](https://polyhaven.com/a/modern_arm_chair_01) by Vibrant Nordic, [Horse Head](https://polyhaven.com/a/horse_head) by Tina, and [Antique Ceramic Vase 01](https://polyhaven.com/a/antique_ceramic_vase_01) by James Ray Cock (CC0) |
+| Custom models | Wooden chair with tapered legs and a slatted back, stone plinth, and beveled vase pedestal |
 | Export and display through Three.js | `public/models/gallery.glb` → `src/gallery/Room.tsx` (React Three Fiber) |
 | Navigation without a mouse or keyboard | Swipes, arrows, dots, and the Overview button; buttons are at least 44 px |
-| Model optimization | External models are reduced to 25,000 triangles, everything is baked into 3 atlases, and the GLB is compressed (meshopt + WebP): about 0.5 MB |
+| Model optimization | The supplied models retain their original geometry. The GLB uses dedicated baked textures, meshopt geometry compression, and WebP images |
 | No console errors or warnings | Checked in Chromium on desktop and in touch mode: the console is clear |
-| Baking | Lighting and textures are baked in Blender (floor, shell, props). Three.js uses no light sources; materials use `MeshBasicMaterial` with tone mapping disabled |
+| Baking | Blender maps highlights with AgX and bakes diffuse lighting and material detail. Dedicated textures for the imported models also capture the glossy response. The exported glTF materials are unlit |
 | Music toggle | `src/ui/useAmbientMusic.ts`, with a Music on/off button; playback starts on the first touch, fades in and out, and pauses when the tab is hidden |
 | Realism, smoothness, and clarity | The camera goes around the partition instead of through it. On portrait screens it moves back so the entire painting fits, and it respects `prefers-reduced-motion` |
 | Bonuses separate from the core experience | `src/bonus/`; enabled only with a flag (see below) |
 
 ## Performance
 
-- 8 draw calls, about 24k triangles, and 7 textures across the frame.
+- The room export contains 12 mesh primitives and about 34.5k triangles.
 - **On-demand rendering** (`frameloop="demand"`): the GPU is idle while a visitor views a painting; frames are rendered only during transitions.
-- JavaScript bundle: 335 KB gzipped (three + R3F + drei); scene: about 0.5 MB; music: 1.1 MB.
+- The welcome screen preloads the compressed GLB. Music starts when the visitor enters the exhibition.
 - Transitions take the same amount of time on any hardware: their duration is based on elapsed time, not frame count.
 
 ## Bonus features
