@@ -35,7 +35,7 @@ export function useAmbientMusic() {
     const from = el.volume
     const t0 = performance.now()
     const step = (now: number) => {
-      const k = Math.min(1, (now - t0) / ms)
+      const k = Math.max(0, Math.min(1, (now - t0) / ms))
       el.volume = from + (to - from) * k
       if (k < 1) {
         fade.current = requestAnimationFrame(step)
